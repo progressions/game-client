@@ -8,8 +8,7 @@ import { Typography, Box, List, ListItem, ListItemText, Alert, Button } from "@m
 export default function GameDetails() {
   const [game, setGame] = useState(null)
   const [player, setPlayer] = useState(null)
-  const [selectedConnection, setSelectedConnection] = useState("")
-  const [nextRoom, setNextRoom] = useState(null)
+  const [currentRoom, setCurrentRoom] = useState(null)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(true)
   const { id } = useParams()
@@ -43,20 +42,27 @@ export default function GameDetails() {
         })
         console.log("Game response:", response.data)
         setGame(response.data)
-        if (response.data.starting_room) {
-          const playerResponse = await axios.post(
-            `${process.env.NEXT_PUBLIC_API_URL}/players`,
-            { player: { current_room_id: response.data.starting_room.id, game_id: id } },
-            { headers: { Authorization: `Bearer ${token}` } }
-          )
-          console.log("Player response:", playerResponse.data)
-          setPlayer(playerResponse.data)
-        } else {
+        if (!response.data.starting_room) {
           setError("No starting room defined for this game")
+          return
+        }
+        console.log("Creating player with current_room_id:", response.data.starting_room.id, "game_id:", id)
+        const playerResponse = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/players`,
+          { player: { current_room_id: response.data.starting_room.id, game_id: id } },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        console.log("Player response:", playerResponse.data)
+        setPlayer(playerResponse.data)
+        if (playerResponse.data.current_room) {
+          setCurrentRoom(playerResponse.data.current_room)
+        } else {
+          console.log("Current room is null in player response")
+          setError("Failed to set player's current room. Room ID may be invalid.")
         }
       } catch (err: any) {
         console.error("Fetch error:", err.message, err.response?.data)
-        setError(err.response?.data?.errors?.join(", ") || "Failed to load game")
+        setError(err.response?.data?.errors?.join(", ") || "Failed to load game or create player")
         if (err.response?.status === 401 || err.response?.status === 404) {
           setTimeout(() => router.push("/games"), 2000)
         }
@@ -72,19 +78,20 @@ export default function GameDetails() {
     try {
       const token = localStorage.getItem("token")
       if (!token) throw new Error("No token found")
-      const connection = game.starting_room.connections.find((conn: any) => conn.id === connectionId)
+      const connection = currentRoom.connections.find((conn: any) => conn.id === connectionId)
       if (!connection) throw new Error("Connection not found")
+      console.log("Moving player with action_text:", connection.label)
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/players/${player.id}/move`,
         { action_text: connection.label },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       console.log("Move response:", response.data)
-      setNextRoom(response.data.player.current_room)
-      setSelectedConnection(connectionId)
+      setPlayer(response.data.player)
+      setCurrentRoom(response.data.player.current_room)
     } catch (err: any) {
       console.error("Move error:", err.message, err.response?.data)
-      setError(err.response?.data?.errors?.join(", ") || "Failed to preview room")
+      setError(err.response?.data?.errors?.join(", ") || "Failed to move to next room")
     }
   }
 
@@ -114,43 +121,55 @@ export default function GameDetails() {
     )
   }
 
+  if (!player) {
+    return (
+      <Box sx={{ maxWidth: "800px", margin: "auto", marginTop: "80px" }}>
+        <Typography sx={{ textAlign: "center" }}>Player not created</Typography>
+        <Button component={Link} href="/games" variant="outlined" color="secondary" sx={{ marginTop: "16px" }}>
+          Back to Games
+        </Button>
+      </Box>
+    )
+  }
+
+  if (!currentRoom) {
+    return (
+      <Box sx={{ maxWidth: "800px", margin: "auto", marginTop: "80px" }}>
+        <Typography sx={{ textAlign: "center" }}>Current room not found</Typography>
+        <Button component={Link} href="/games" variant="outlined" color="secondary" sx={{ marginTop: "16px" }}>
+          Back to Games
+        </Button>
+      </Box>
+    )
+  }
+
   return (
     <Box sx={{ maxWidth: "800px", margin: "auto", marginTop: "80px" }}>
       <Typography variant="h4" gutterBottom>
         {game.title}
       </Typography>
-      <Typography variant="h6">Starting Room</Typography>
-      {game.starting_room ? (
-        <Box sx={{ border: "1px solid", borderColor: "grey.300", padding: "16px", borderRadius: "4px", marginBottom: "16px" }}>
-          <Typography variant="h6">{game.starting_room.title}</Typography>
-          <Typography>{game.starting_room.description}</Typography>
-          <Typography variant="subtitle1" sx={{ marginTop: "8px" }}>Exits:</Typography>
-          {game.starting_room.connections?.length === 0 ? (
-            <Typography>No exits available</Typography>
-          ) : (
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" }}>
-              {game.starting_room.connections?.map((conn: any) => (
-                <Button
-                  key={conn.id}
-                  variant={selectedConnection === conn.id ? "contained" : "outlined"}
-                  color="primary"
-                  onClick={() => handleConnectionSelect(conn.id)}
-                >
-                  {conn.label}
-                </Button>
-              ))}
-            </Box>
-          )}
-        </Box>
-      ) : (
-        <Typography>No starting room defined</Typography>
-      )}
-      {nextRoom && (
-        <Box sx={{ border: "1px solid", borderColor: "grey.300", padding: "16px", borderRadius: "4px", marginBottom: "16px" }}>
-          <Typography variant="h6">Next Room: {nextRoom.title}</Typography>
-          <Typography>{nextRoom.description}</Typography>
-        </Box>
-      )}
+      <Typography variant="h6">Current Room</Typography>
+      <Box sx={{ border: "1px solid", borderColor: "grey.300", padding: "16px", borderRadius: "4px", marginBottom: "16px" }}>
+        <Typography variant="h6">{currentRoom.title}</Typography>
+        <Typography>{currentRoom.description}</Typography>
+        <Typography variant="subtitle1" sx={{ marginTop: "8px" }}>Exits:</Typography>
+        {currentRoom.connections?.length === 0 ? (
+          <Typography>No exits available</Typography>
+        ) : (
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" }}>
+            {currentRoom.connections?.map((conn: any) => (
+              <Button
+                key={conn.id}
+                variant="outlined"
+                color="primary"
+                onClick={() => handleConnectionSelect(conn.id)}
+              >
+                {conn.label}
+              </Button>
+            ))}
+          </Box>
+        )}
+      </Box>
       <Button component={Link} href="/games" variant="outlined" color="secondary">
         Back to Games
       </Button>
