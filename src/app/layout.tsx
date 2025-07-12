@@ -1,18 +1,20 @@
-import type { Metadata } from 'next';
+import type { Metadata } from "next"
+import ThemeWrapper from "@/components/ThemeWrapper"
 
 export const metadata: Metadata = {
-  title: 'Game Client',
-  description: 'Frontend for exploration game',
-};
+  title: "Game Client",
+  description: "Client for game"
+}
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ThemeWrapper>
+          {children}
+        </ThemeWrapper>
+      </body>
     </html>
-  );
+  )
 }
+
