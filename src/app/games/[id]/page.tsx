@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import axios from "axios"
 import { useParams, useRouter, Link } from "next/navigation"
-import { Typography, Box, List, ListItem, ListItemText, Alert, Button, Select, MenuItem } from "@mui/material"
+import { Typography, Box, List, ListItem, ListItemText, Alert, Button } from "@mui/material"
 
 export default function GameDetails() {
   const [game, setGame] = useState(null)
@@ -128,20 +128,17 @@ export default function GameDetails() {
           {game.starting_room.connections?.length === 0 ? (
             <Typography>No exits available</Typography>
           ) : (
-            <Box sx={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "8px" }}>
-              <Select
-                value={selectedConnection}
-                onChange={(e) => handleConnectionSelect(e.target.value)}
-                displayEmpty
-                sx={{ minWidth: "200px" }}
-              >
-                <MenuItem value="">Select a path</MenuItem>
-                {game.starting_room.connections?.map((conn: any) => (
-                  <MenuItem key={conn.id} value={conn.id}>
-                    {conn.label}
-                  </MenuItem>
-                ))}
-              </Select>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" }}>
+              {game.starting_room.connections?.map((conn: any) => (
+                <Button
+                  key={conn.id}
+                  variant={selectedConnection === conn.id ? "contained" : "outlined"}
+                  color="primary"
+                  onClick={() => handleConnectionSelect(conn.id)}
+                >
+                  {conn.label}
+                </Button>
+              ))}
             </Box>
           )}
         </Box>
